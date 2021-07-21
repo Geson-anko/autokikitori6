@@ -30,7 +30,8 @@ class GlobalEncoder(nn.Module):
 class LocalEncoder(nn.Module):
     __outch = GlobalEncoder.out_channels
     input_size:tuple = (1,__outch,config.recognize_length)
-    output_size:tuple = (1,32,1)
+    outch = 32
+    output_size:tuple = (1,outch,1)
 
     def __init__(self):
         super().__init__()
@@ -42,7 +43,7 @@ class LocalEncoder(nn.Module):
         res1 = nResBlocks1d(128,128,kernel_size=3,nlayers=3)
         poolconv2 = ConvNorm1d(128,256,kernel_size=18,stride=3)
 
-        out_conv = nn.Conv1d(256,32,15)
+        out_conv = nn.Conv1d(256,self.outch,15)
 
         self.layers = nn.Sequential(
             poolconv0,nn.ReLU(),
@@ -215,6 +216,6 @@ if __name__ == '__main__':
     summary(model,dummy)
     print(model(dummy).shape)
 
-    writer = SummaryWriter()
-    writer.add_graph(model,dummy)
-    writer.close()
+    #writer = SummaryWriter()
+    #writer.add_graph(model,dummy)
+    #writer.close()
