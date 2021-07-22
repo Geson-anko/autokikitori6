@@ -53,6 +53,7 @@ bos_value:float = -1.0
 
 # Oshaberi settings --------
 speak_seq_len:int = 64
+speak_stft_seq_len:int = 66
 speak_chunk_len:int = overlap_length*speak_seq_len
 speak_length:int = speak_chunk_len + overlap_length
 speak_second:float = speak_length/frame_rate
