@@ -7,6 +7,8 @@ import multiprocessing as mp
 from typing import Tuple,Any,List,Union
 from concurrent.futures import ProcessPoolExecutor
 from torch.utils import data as DataUtil
+from pydub import AudioSegment
+import config
 
 @dataclass
 class DataHolder:
@@ -216,3 +218,35 @@ class Dataset_fromDrive(DataUtil.Dataset):
             l = f[key_names[0]].shape[0]
             if l < using_length.stop:
                 pass
+
+# addtionals
+def sound_load(file_path:str) -> np.ndarray:
+    """
+    This function loads sound file.
+    The range of value is normalized to -1 to 1.
+    
+    return -> 1D array. So sound channel is only 1.
+    """
+    sound = AudioSegment.from_file(file_path)
+    sound = sound.set_channels(1)
+    sound = sound.set_frame_rate(config.frame_rate)
+    sound = sound.set_sample_width(config.sample_width)
+    sound = np.array(sound.get_array_of_samples()) / config.sample_range
+    return sound
+
+
+def UnfoldFFT(audio:torch.Tensor) -> torch.Tensor:
+    """
+    This function converts 2d audio tensor to geson style mel spectrogram.
+    input_shape :   (NumAudio, AudioLength)
+    output_shape:   (NumAudio, fft_channels, time_step)
+    """
+    data = audio.unfold(1,config.recognize_length,config.overlap_length)
+    data = torch.fft.rfft(data,dim=-1)
+    data = data.abs().transpose(2,1).type_as(audio)
+    return data
+
+if __name__ == '__main__':
+    # test field
+    dummy = torch.randn(2,20800)
+    print(UnfoldFFT(dummy).shape)
