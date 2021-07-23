@@ -2,8 +2,8 @@
 This is VCGAN hyper parameter settings.
 """
 model_name = 'VCGAN'
-lr = 0.001
-
+lr = 0.0001
+true_loss_scaler = 100.0
 
 
 class generator_hparams:

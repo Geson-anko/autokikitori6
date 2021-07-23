@@ -50,17 +50,15 @@ class Generator(nn.Module):
         x =self.layers(x)
         return x
     
-    @torch.no_grad()
     def ToWave(self,x:torch.Tensor) -> torch.Tensor:
         """
-        x: (-1,321,66), processed by log1p.
+        x: (-1,128,64), processed by log1p.
         """
         x = self(x).float()
         x = torch.expm1(x)
         x = self.griffin_lim(x)
         return x
         
-
 class Discriminator(nn.Module):
     input_size:tuple = (1,config.fft_channels,config.speak_stft_seq_len)
     output_size:tuple = (1,1)
@@ -111,7 +109,8 @@ class VCGAN(pl.LightningModule):
         # define adversarial loss
         self.adversarial_loss = nn.BCEWithLogitsLoss()
         # define L1loss
-        self.l1_loss = nn.L1Loss()
+        #self.l1_loss = nn.L1Loss()
+        self.l1_loss = nn.HuberLoss()
         # define mel_scaler
         self.mel_scaler = MelScale(config.mel_channels,config.frame_rate,n_stft=config.fft_channels)
         # define accuracy
@@ -133,16 +132,32 @@ class VCGAN(pl.LightningModule):
         We want to get fewer, but do not use `backward()` and `update()`.
         this loss is just an indicator.
         """
-        audio = self.generator.griffin_lim(target)
-        source = UnfoldFFT(audio)
-        source = self.mel_scaler(source).log1p()
+        source = self._target_to_source(target)
         out = self.generator(source.type_as(target))
         loss = self.l1_loss(out,target)
         return loss
 
+    def _target_to_audio(self,target:torch.Tensor) -> torch.Tensor:
+        audio = self.generator.griffin_lim(target.float().expm1())
+        audio = audio.type_as(target)
+        return audio
+    def _target_to_source(self,target:torch.Tensor) -> torch.Tensor:
+        audio = self._target_to_audio(target.float())
+        source = UnfoldFFT(audio)
+        source = self.mel_scaler(source).log1p()
+        source = source.type_as(target)
+        return source
+    def _source_to_audio(self,source:torch.Tensor) -> torch.Tensor:
+        return self.generator.ToWave(source) 
+
+    def _regenerate_target(self,target:torch.Tensor) -> torch.Tensor:
+        source = self._target_to_source(target)
+        target = self.generator(source)
+        return target
+    
     def training_step(self,batch,batch_idx,optimizer_idx):
         source,target = batch
-
+        self.source,self.target = source,target
         # generator updates
         if optimizer_idx == 0:
             generated = self.generator(source)
@@ -158,6 +173,7 @@ class VCGAN(pl.LightningModule):
             self.log('true_loss',true_loss)
             self.log('g_loss',g_loss)
             self.log('g_acc',g_acc)
+            g_loss = (g_loss+true_loss*self.__hparams.true_loss_scaler)*0.5
             # logging
             tqdm_dict = {'g_loss':g_loss}
             output = OrderedDict({'loss': g_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
@@ -188,18 +204,27 @@ class VCGAN(pl.LightningModule):
         
     # saving generated audios and spectrum images
     now_epochs=0
-    saving_rate = 10
+    saving_rate = 100
     max_view_len = 10
+    @torch.no_grad()
     def on_epoch_end(self) -> None:
         self.now_epochs+=1
         if self.now_epochs % self.saving_rate == 0:
-            audio = self.generator.griffin_lim(self.generated[:self.max_view_len].detach().float().expm1()).reshape(-1)
+            # audio
+            audio = self._target_to_audio(self.generated[:self.max_view_len].detach().float()).reshape(-1)
             self.logger.experiment.add_audio('generated audio',audio,self.current_epoch,sample_rate=config.frame_rate)
 
-            # spectrum images
+            # spectrogram images
             spects = self.generated[:self.max_view_len]
             s = torch.cat([i for i in spects],dim=-1)
             self.logger.experiment.add_image('generated spectrums',s,self.current_epoch,dataformats='HW')
+
+            # regenerate audio
+            target_re = self._regenerate_target(self.target[:self.max_view_len].float())
+            audio_re = self._target_to_audio(target_re).reshape(-1)
+            audio = self._target_to_audio(self.target[:self.max_view_len]).reshape(-1)
+            audio = torch.cat([audio,audio_re])
+            self.logger.experiment.add_audio('Regenerated audio',audio,self.current_epoch,sample_rate=config.frame_rate)
 
         return 
 
