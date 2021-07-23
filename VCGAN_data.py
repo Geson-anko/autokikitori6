@@ -5,11 +5,12 @@ import torch
 import numpy as np
 import glob
 
+filepath = 'data/VCGAN_data.h5'
 source_key = 'source'
 target_key = 'target'
 
 class MakeSource(CreateDataset):
-    filepath = 'data/VCGAN_data.h5'
+    filepath = filepath
 
     def __init__(self) ->None:
         self.mel_scaler = MelScale(config.mel_channels,config.frame_rate,n_stft=config.fft_channels)

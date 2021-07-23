@@ -234,7 +234,7 @@ def sound_load(file_path:str) -> np.ndarray:
     sound = np.array(sound.get_array_of_samples()) / config.sample_range
     return sound
 
-
+# addtionals
 def UnfoldFFT(audio:torch.Tensor) -> torch.Tensor:
     """
     This function converts 2d audio tensor to geson style mel spectrogram.
@@ -246,6 +246,46 @@ def UnfoldFFT(audio:torch.Tensor) -> torch.Tensor:
     data = data.abs().transpose(2,1).type_as(audio)
     return data
 
+# additionals 
+class Dataset_VCGAN(DataUtil.Dataset):
+
+    def __init__(self,file_name:str, *key_names:str, using_length:int or slice, log:bool = False):
+        super().__init__()
+        if type(using_length) is int:
+            using_length = slice(using_length)
+
+        with h5py.File(file_name,'r',swmr=True) as f:
+            self.data = []
+            self.__datalens = []
+            for k in key_names:
+                d = f[k][using_length]
+                self.data.append(torch.from_numpy(d))
+                self.__datalens.append(len(d))
+                if log:
+                    print(f'loaded: {k}, shape: {d.shape}')
+
+        self.__len = max(self.__datalens)
+
+    def __len__(self):
+        return self.__len
+
+    def __getitem__(self,index):
+
+        data = []
+        for i,d in enumerate(self.data):
+            _l = self.__datalens[i]
+            if _l > index:
+                data.append(d[index])
+            else:
+                ri = np.random.randint(0,_l)
+                data.append(d[ri])
+
+        return tuple(data)
+
+from datetime import datetime
+def get_now(strf:str = '%Y-%m-%d_%H-%M-%S'):
+    now = datetime.now().strftime(strf)
+    return now
 if __name__ == '__main__':
     # test field
     dummy = torch.randn(2,20800)

@@ -17,6 +17,7 @@ import random
 import os
 from DatasetLib import UnfoldFFT
 from collections import OrderedDict
+from torchmetrics import Accuracy
 
 class Generator(nn.Module):
     input_size:tuple = (1,config.mel_channels,config.speak_seq_len)
@@ -54,9 +55,9 @@ class Generator(nn.Module):
         """
         x: (-1,321,66), processed by log1p.
         """
-        x = self(x)
-        x = self.griffin_lim(x)
+        x = self(x).float()
         x = torch.expm1(x)
+        x = self.griffin_lim(x)
         return x
         
 
@@ -113,6 +114,8 @@ class VCGAN(pl.LightningModule):
         self.l1_loss = nn.L1Loss()
         # define mel_scaler
         self.mel_scaler = MelScale(config.mel_channels,config.frame_rate,n_stft=config.fft_channels)
+        # define accuracy
+        self.accuracy = Accuracy()
 
         # layers
         self.generator = Generator(hparams.generator_hparams)
@@ -131,7 +134,6 @@ class VCGAN(pl.LightningModule):
         this loss is just an indicator.
         """
         audio = self.generator.griffin_lim(target)
-        print(audio)
         source = UnfoldFFT(audio)
         source = self.mel_scaler(source).log1p()
         out = self.generator(source.type_as(target))
@@ -145,13 +147,17 @@ class VCGAN(pl.LightningModule):
         if optimizer_idx == 0:
             generated = self.generator(source)
             # save generated data
-            self.generated = generated
+            self.generated = generated.detach()
             
             valid = torch.ones(source.size(0),1)
             valid = valid.type_as(generated)
-            g_loss = self.adversarial_loss(self.discriminator(generated),valid)
+            out_dis = self.discriminator(generated)
+            g_loss = self.adversarial_loss(out_dis,valid)
             true_loss = self.true_loss(target)
+            g_acc = self.accuracy(out_dis>0,valid.bool())
             self.log('true_loss',true_loss)
+            self.log('g_loss',g_loss)
+            self.log('g_acc',g_acc)
             # logging
             tqdm_dict = {'g_loss':g_loss}
             output = OrderedDict({'loss': g_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
@@ -162,17 +168,40 @@ class VCGAN(pl.LightningModule):
             # real
             valid = torch.ones(target.size(0),1)
             valid = valid.type_as(target)
-            real_loss = self.adversarial_loss(self.discriminator(target),valid)
+            dis_out = self.discriminator(target)
+            real_loss = self.adversarial_loss(dis_out,valid)
+            real_acc = self.accuracy(dis_out>0,valid.bool())
 
             # fake
             fake = torch.zeros(source.size(0),1)
             fake = fake.type_as(source)
-            fake_loss = self.adversarial_loss(self.generated.detach(),fake)
+            dis_out = self.discriminator(self.generated.detach())
+            fake_loss = self.adversarial_loss(dis_out,fake)
+            fake_acc = self.accuracy(dis_out>0,fake.bool())
             d_loss = (real_loss+fake_loss)/2
-
+            d_acc = (fake_acc+real_acc)/2
+            self.log('d_acc',d_acc)
+            self.log('d_loss',d_loss)
             tqdm_dict = {'d_loss':d_loss}
             output = OrderedDict({'loss': d_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
             return output
+        
+    # saving generated audios and spectrum images
+    now_epochs=0
+    saving_rate = 10
+    max_view_len = 10
+    def on_epoch_end(self) -> None:
+        self.now_epochs+=1
+        if self.now_epochs % self.saving_rate == 0:
+            audio = self.generator.griffin_lim(self.generated[:self.max_view_len].detach().float().expm1()).reshape(-1)
+            self.logger.experiment.add_audio('generated audio',audio,self.current_epoch,sample_rate=config.frame_rate)
+
+            # spectrum images
+            spects = self.generated[:self.max_view_len]
+            s = torch.cat([i for i in spects],dim=-1)
+            self.logger.experiment.add_image('generated spectrums',s,self.current_epoch,dataformats='HW')
+
+        return 
 
     def forward(self,source:torch.Tensor):
         """
