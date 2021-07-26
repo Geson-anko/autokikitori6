@@ -173,7 +173,7 @@ class VCGAN(pl.LightningModule):
             self.log('true_loss',true_loss)
             self.log('g_loss',g_loss)
             self.log('g_acc',g_acc)
-            g_loss = (g_loss+true_loss*self.__hparams.true_loss_scaler)*0.5
+            g_loss = (g_loss+true_loss*self.__hparams.true_loss_scaler)
             # logging
             tqdm_dict = {'g_loss':g_loss}
             output = OrderedDict({'loss': g_loss, 'progress_bar': tqdm_dict, 'log': tqdm_dict})
@@ -245,10 +245,11 @@ class VCGAN(pl.LightningModule):
 if __name__ == '__main__':
     from torchsummaryX import summary
     from torch.utils.tensorboard import SummaryWriter
-    model = VCGAN()
-    dummy = torch.randn(model.target_size).abs()
-    print(model.true_loss(dummy))
-    #summary(model,dummy)
+    from hparams import VCGAN_bigG
+    model = VCGAN(VCGAN_bigG).generator
+    dummy = torch.randn(model.input_size)
+    #print(model.true_loss(dummy))
+    summary(model,dummy)
     #print(model.model_name,model(dummy).shape)
 
     #writer = SummaryWriter(comment=model.model_name)
