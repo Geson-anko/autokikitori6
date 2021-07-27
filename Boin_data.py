@@ -6,14 +6,14 @@ import config
 import glob
 
 class ToData(CreateDataset):
-    filepath = 'data/BoinAutoEncoder.h5'
+    filepath = 'data/BoinAutoEncoder_siinp.h5'
     data_key = 'data'
 
     def __init__(self):
         self.specter = Spectrogram(config.recognize_length,hop_length=config.overlap_length)
 
     def load(self):
-        files = glob.glob('data/boin_only/*.wav')
+        files = glob.glob('data/siin_only/*.wav')
         return files
 
     def process(self,input_data):
