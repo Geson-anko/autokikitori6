@@ -56,9 +56,8 @@ class VoiceBand(pl.LightningModule):
 
     def forward(self,target:torch.Tensor):
         # target : (-1, 321,66)
-        #audio = self.target_to_audio(target)
-        #spect = self.audio_to_spectrogram(audio)
-        spect = self._boin_only_flow(target)
+        spect = self._convert_target(target)
+        #spect = self._boin_only_flow(target)
         return spect
 
     def configure_optimizers(self):
@@ -78,34 +77,38 @@ class VoiceBand(pl.LightningModule):
     def on_epoch_end(self) -> None:
         if (1+self.current_epoch) % self.my_hparams.view_interval==0:
             target = self.target[:self.my_hparams.max_view_len].to(self.device).to(self.dtype)
-            #generated_audio = self.target_to_audio(target).unsqueeze(1)
-            generated_audio = self.spectrogram_to_audio(self._boin_only_flow(target)).unsqueeze(1)
+            generated_audio = self.ToWave(target).unsqueeze(1)
+            #generated_audio = self.spectrogram_to_audio(self._boin_only_flow(target)).unsqueeze(1)
             target_audio = self.spectrogram_to_audio(target).unsqueeze(1)
             audio = torch.cat([target_audio,generated_audio],dim=1).view(-1)
             self.logger.experiment.add_audio('generated boin',audio,self.current_epoch,sample_rate=config.frame_rate)
             
 
-
-    #def on_fit_start(self) -> None:
-    #    return self.logger.experiment.add_hparams(self.my_hparams_dict,dict())
-
-    def target_to_audio(self,target:torch.Tensor) -> torch.Tensor:
+    def ToWave(self,target:torch.Tensor) -> torch.Tensor:
         """
         target (-1, 321, 66) -> audio (-1, 20800)
         """
+        spect = self._convert_target(target)
+        audio = self.griffin_lim(spect)
+        return audio
+
+    #def on_fit_start(self) -> None:
+    #    return self.logger.experiment.add_hparams(self.my_hparams_dict,dict())
+    def _convert_target(self,target:torch.Tensor)->torch.Tensor:
+        """
+        target (-1, 321, 66) -> spect (-1, 321, 66)
+        """
         h = self.layers(target) # (-1, 512, 66)
-        blend = self.to_blend(h).transpose(2,1).softmax(dim=-1) # (-1, 66, 2)
-        gain = self.to_gain(h).sigmoid().transpose(2,1).mean(dim=1) # (-1, 1)
-        
+        blend = self.to_blend(h).transpose(2,1).sigmoid() # (-1, 66, 2)
+        gain = self.to_gain(h).tanh().relu().transpose(2,1) # (-1, 66, 1)
+
         boin = self.to_boin(h).tanh().transpose(2,1) # (-1, 66, 1)
         boin = self.boin_decoder(boin) # (-1, 66, 321)
         siin = self.to_siin(h).tanh().transpose(2,1) # (-1, 66, 1)
         siin = self.siin_decoder(siin)
-
-        voice_spect = boin * blend[:,:,0].unsqueeze(-1) + siin * blend[:,:,1].unsqueeze(-1) # (-1, 66, 321)
-        audio = self.spectrogram_to_audio(voice_spect.transpose(2,1))
-        audio = audio * gain
-        return audio
+        spect = boin.expm1() * blend[:,:,0].unsqueeze(-1) + siin.expm1() * blend[:,:,1].unsqueeze(-1) # (-1, 66, 321)
+        spect = (spect * gain).log1p().transpose(2,1)
+        return spect
 
     def _boin_only_flow(self,target:torch.Tensor) -> torch.Tensor:
         h = self.layers(target) # (-1, 512, 66)

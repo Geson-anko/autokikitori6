@@ -1,7 +1,7 @@
 {
     "model_name":"VoiceBandSpec",
     "lr":0.001,
-    "view_interval":10,
+    "view_interval":50,
     "max_view_len":10,
     "BoinDecoder_parameter_file":"params/BoinDecoder_big0_2021-07-27_16-35-23.pth",
     "SiinDecoder_parameter_file":"params/BoinDecoder_siin0_2021-07-27_17-05-26.pth",
