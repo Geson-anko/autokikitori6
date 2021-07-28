@@ -1,0 +1,25 @@
+{
+    "model_name":"VoiceBandSpec",
+    "lr":0.001,
+    "view_interval":10,
+    "max_view_len":10,
+    "BoinDecoder_parameter_file":"params/BoinDecoder_big0_2021-07-27_16-35-23.pth",
+    "SiinDecoder_parameter_file":"params/BoinDecoder_siin0_2021-07-27_17-05-26.pth",
+    "ch0":512,"k0":3,
+    "ch1":512,"k1":3,"layers1":4,"divs1":4,
+    "ch2":512,"k2":3,"layers2":3,"divs2":2,
+
+
+    "BoinDecoder_hparams":{
+        "model_name":"BoinDecoder_big0",
+        "nhid":512,
+        "nlayers":3
+    },
+    "SiinDecoder_hparams":{
+        "model_name":"BoinDecoder_siin0",
+        "nhid":512,
+        "nlayers":2
+    }
+
+}
+
