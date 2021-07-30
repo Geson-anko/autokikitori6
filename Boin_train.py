@@ -4,14 +4,14 @@ import pytorch_lightning as pl
 from DatasetLib import Dataset_onMemory,get_now
 from Boin_data import ToData
 import config
-from hparams import Boin_siin as hparam
+from hparams import Boin2_default as hparam
 from torch.utils import data as Datautil
-from Boin_model import AutoEncoder
+from Boin2_model import AutoEncoder
 #%% loading dataset and defining some settings
-data_set = Dataset_onMemory(ToData.filepath,ToData.data_key,using_length=10000,log=True)
-batch_size = 2048
+data_set = Dataset_onMemory(ToData.filepath,ToData.data_key,using_length=-1,log=False)
+batch_size = 8192*4
 EPOCHS = 5000
-data_loader = Datautil.DataLoader(data_set,batch_size,shuffle=True,num_workers=0,pin_memory=False)
+data_loader = Datautil.DataLoader(data_set,batch_size,shuffle=False,num_workers=0,pin_memory=True)
 
 model = AutoEncoder(hparam)
 
