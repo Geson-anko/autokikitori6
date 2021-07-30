@@ -78,7 +78,7 @@ class VoiceBand(pl.LightningModule):
             #generated_audio = self.spectrogram_to_audio(self._boin_only_flow(target)).unsqueeze(1)
             target_audio = self.spectrogram_to_audio(target).unsqueeze(1)
             audio = torch.cat([target_audio,generated_audio],dim=1).view(-1)
-            self.logger.experiment.add_audio('generated boin',audio,self.current_epoch,sample_rate=config.frame_rate)
+            self.logger.experiment.add_audio('generated voice',audio,self.current_epoch,sample_rate=config.frame_rate)
             
 
     def ToWave(self,target:torch.Tensor) -> torch.Tensor:
