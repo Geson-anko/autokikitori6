@@ -2,10 +2,10 @@
 import torch
 import pytorch_lightning as pl
 from DatasetLib import Dataset_onMemory,get_now
-from voicebandSpec_model import VoiceBand
+from voicebandSpec2_model import VoiceBand
 from voicebandSpec_data import ToData
 from torch.utils import data as DataUtil
-from hparams import json_to_dict
+from hparams import json_to_dict,voicebandSpec2_default as hparams
 hparam_dict = json_to_dict('hparams/voiceband_default.json')
 
 #%% loading dataset and defining some settings
@@ -13,7 +13,7 @@ data_set = Dataset_onMemory(ToData.filepath,ToData.target_key,using_length=1024,
 batch_size = 64
 EPOCHS = 100
 data_loader = DataUtil.DataLoader(data_set,batch_size,shuffle=True,num_workers=0,pin_memory=False)
-model = VoiceBand(hparam_dict)
+model = VoiceBand(hparams)
 
 # %% training
 if __name__ == '__main__':
