@@ -5,13 +5,13 @@ from pydub import AudioSegment
 import config
 
 class ToData(CreateDataset):
-    filepath = 'data/WaveAutoEncoder2_data.h5'
+    filepath = 'data/WaveAutoEncoder3_data.h5'
     data_name:str='data'
     def __init__(self) -> None:
         super().__init__()
 
     def load(self):
-        files = glob.glob('data/checked_kiritan/*.wav')
+        files = glob.glob('data/kiritan_base/*.wav')
         return files
 
     def process(self,input_data):
