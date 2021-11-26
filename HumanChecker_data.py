@@ -2,8 +2,12 @@ import numpy as np
 from pydub import AudioSegment
 import torch
 import config
+import h5py
 from glob import glob
 class MakeTrue:
+    """Description
+    This class makes True(the human voice) dataset as answer. 
+    """
     
     save_file:str = 'data/HumanChecker.h5'
     key_name:str = 'voice'
@@ -23,6 +27,7 @@ class MakeTrue:
         Your data preprocess.
         return is numpy array
         """
+        # load sound file.
         sound = AudioSegment.from_file(indata)
         if sound.frame_rate != config.frame_rate:
             sound = sound.set_frame_rate(config.frame_rate)
@@ -31,8 +36,10 @@ class MakeTrue:
         if sound.sample_width != config.sample_width:
             sound = sound.set_sample_width(config.sample_width)
 
+        # to numpy array
         soundarray = np.array(sound.get_array_of_samples())/config.sample_range
 
+        # splitting sound data and convert to torch.Tensor
         soundtensor = []
         for idx in range(0,soundarray.shape[0],config.CHUNK):
             _st = soundarray[idx:idx+config.sample_length]
@@ -41,9 +48,9 @@ class MakeTrue:
             _st = np.concatenate([_st,pad])
             soundtensor.append(_st)
         soundtensor = np.stack(soundtensor)
-        soundtensor = torch.from_numpy(soundtensor).unfold(1,config.recognize_length,config.overlap_length)
-        soundtensor = torch.fft.rfft(soundtensor,dim=-1).abs() # (-1,seq_len,channels)
-        soundtensor = torch.log1p(soundtensor).permute(0,2,1)
+        soundtensor = torch.from_numpy(soundtensor).unfold(1,config.recognize_length,config.overlap_length) # this is the imperfect stft process... So please use torch.stft()
+        soundtensor = torch.fft.rfft(soundtensor,dim=-1).abs() # (-1,seq_len,channels) # this is the imperfect stft process... So please use torch.stft()
+        soundtensor = torch.log1p(soundtensor).permute(0,2,1) 
         return soundtensor.detach().numpy().astype('float16')
 
     def save(self,data:np.ndarray) -> None:
@@ -52,6 +59,9 @@ class MakeTrue:
         print('saved')
 
 class MakeFalse(MakeTrue):
+    """Description
+    This class makes False(not human voice) dataset as answer.
+    """
 
     key_name:str = 'noize'
     def load(self) -> list:
@@ -61,7 +71,6 @@ class MakeFalse(MakeTrue):
 
 
 if __name__ == '__main__':
-    import h5py
     from concurrent.futures import ProcessPoolExecutor
 
     todata = MakeTrue()
@@ -69,6 +78,7 @@ if __name__ == '__main__':
     workers = 8
     database = todata.load()
 
+    # parallel processing.
     print('processing')
     with ProcessPoolExecutor(workers) as p:
         result = p.map(func,database[:workers])
